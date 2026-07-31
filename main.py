@@ -493,35 +493,33 @@ async def perform_emote(team_code: str, uids: list, emote_id: int):
             raise Exception("Bot not connected to game server")
 
         try:
-            # Build all packets first so we can blast them out with zero gap
-            EM = await GenJoinSquadsPacket(team_code, key, iv)
-            emote_packets = [
-                await Emote_k(int(uid_str), emote_id, key, iv, region)
-                for uid_str in uids
-            ]
-            LV = await ExiT(BOT_UID, key, iv)
-
             if online_writer is None:
                 raise Exception("Connection lost before send")
 
-            # Blast: join → emote(s) → exit  — no sleep between them
+            # 1) Join squad
+            EM = await GenJoinSquadsPacket(team_code, key, iv)
             online_writer.write(EM)
-            for pkt in emote_packets:
+            await online_writer.drain()
+
+            # 2) Small wait so server processes the join before emote arrives
+            await asyncio.sleep(0.08)
+
+            if online_writer is None:
+                raise Exception("Connection lost after join")
+
+            # 3) Send emote packets for each UID
+            for uid_str in uids:
+                pkt = await Emote_k(int(uid_str), emote_id, key, iv, region)
                 online_writer.write(pkt)
-            online_writer.write(LV)
-            await online_writer.drain()   # single flush for everything
+            await online_writer.drain()
+
+            # NOTE: We do NOT send ExiT — it closes the TCP connection which
+            # takes the bot offline. The squad slot expires on its own.
 
             CURRENT_TEAM_CODE = None
-            return {"status": "success", "message": "Emote sent and left team"}
+            return {"status": "success", "message": "Emote sent"}
 
         except Exception as e:
-            try:
-                if online_writer is not None:
-                    LV = await ExiT(BOT_UID, key, iv)
-                    online_writer.write(LV)
-                    await online_writer.drain()
-            except:
-                pass
             raise Exception(f"Emote failed: {str(e)}")
 
 

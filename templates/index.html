@@ -757,6 +757,10 @@
     document.getElementById('sel-id').textContent   = 'ID: ' + id;
     document.getElementById('sel-pill').classList.add('show');
     addLog(`Selected: ${name}  (ID: ${id})`, 'in');
+    // Auto-send only when UID1 + team code are already filled
+    const _u = document.getElementById('uid1').value.trim();
+    const _t = document.getElementById('tcode').value.trim();
+    if (_u && _t) doSend();
   }
 
   /* ═══ SEND ═══ */
