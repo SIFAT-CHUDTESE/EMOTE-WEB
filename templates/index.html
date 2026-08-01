@@ -615,14 +615,18 @@
   }
 
   async function pingAPI() {
-    const t = Date.now();
     const badge = document.getElementById('api-badge');
     try {
       const d = await (await fetch('/api/health')).json();
-      document.getElementById('srv-lbl').textContent = 'API Online';
-      badge.classList.remove('offline');
+      if (d.bot_online) {
+        document.getElementById('srv-lbl').textContent = 'Bot Online';
+        badge.classList.remove('offline');
+      } else {
+        document.getElementById('srv-lbl').textContent = 'Bot Reconnecting…';
+        badge.classList.add('offline');
+      }
     } catch {
-      document.getElementById('srv-lbl').textContent = 'Offline';
+      document.getElementById('srv-lbl').textContent = 'API Offline';
       badge.classList.add('offline');
     }
   }

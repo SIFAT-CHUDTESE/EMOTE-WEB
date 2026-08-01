@@ -218,12 +218,14 @@ async def SEndPacKeT(OnLinE , ChaT , TypE , PacKeT):
         online_writer.write(PacKeT) ; await online_writer.drain()
     else: return 'UnsoPorTed TypE ! >> ErrrroR (:():)'
 
-async def TcPOnLine(ip, port, key, iv, AutHToKen, reconnect_delay=0.5):
+async def TcPOnLine(ip, port, key, iv, AutHToKen, reconnect_delay=0.1):
     global online_writer , spam_room , whisper_writer , spammer_uid , spam_chat_id , spam_uid , XX , uid , Spy,data2, Chat_Leave
+    consecutive_fails = 0
     while True:
         try:
             reader , writer = await asyncio.open_connection(ip, int(port))
             online_writer = writer
+            consecutive_fails = 0  # reset on successful connect
             bytes_payload = bytes.fromhex(AutHToKen)
             online_writer.write(bytes_payload)
             await online_writer.drain()
@@ -246,9 +248,23 @@ async def TcPOnLine(ip, port, key, iv, AutHToKen, reconnect_delay=0.5):
                     except:
                         pass
 
-            online_writer.close() ; await online_writer.wait_closed() ; online_writer = None
+            # Server closed the connection — clean up
+            try:
+                online_writer.close()
+                await online_writer.wait_closed()
+            except:
+                pass
+            online_writer = None
 
-        except Exception as e: print(f"- ErroR With {ip}:{port} - {e}") ; online_writer = None
+        except Exception as e:
+            print(f"- ErroR OnLine {ip}:{port} - {e}")
+            online_writer = None
+            consecutive_fails += 1
+            # After 3 straight failures the token is dead — bubble up so
+            # StarTinG can do a full re-login
+            if consecutive_fails >= 3:
+                raise Exception(f"OnLine reconnect failed {consecutive_fails}x — triggering re-login")
+
         await asyncio.sleep(reconnect_delay)
 
 async def TcPChaT(ip, port, AutHToKen, key, iv, LoGinDaTaUncRypTinG, ready_event, region , reconnect_delay=0.5):
@@ -450,9 +466,9 @@ def api_send():
     if emote_id is None:
         return jsonify({"message": f"Unknown emote: {emote_name}"}), 400
 
-    if online_writer is None:
-        return jsonify({"message": "Bot not connected to game server yet. Please wait."}), 503
-
+    # Do NOT short-circuit here — perform_emote will wait up to 10s for
+    # the connection to come back (it drops briefly after each squad-join
+    # packet while TcPOnLine reconnects).
     results = []
     for uid in uids:
         try:
@@ -486,35 +502,48 @@ async def _wait_for_writer(timeout=10):
 async def perform_emote(team_code: str, uids: list, emote_id: int):
     global key, iv, region, online_writer, BOT_UID, CURRENT_TEAM_CODE
 
+    # ── Step 1: Wait for connection BEFORE acquiring the lock ──────────────
+    # After each squad-join packet the FF server drops the TCP connection;
+    # TcPOnLine reconnects in ~0.1-0.3 s.  Waiting here (without the lock)
+    # lets multiple concurrent requests share the wait instead of blocking
+    # each other serially.
+    ready = await _wait_for_writer(timeout=10)
+    if not ready:
+        raise Exception("Bot not connected to game server. Please try again.")
+
+    # ── Step 2: Acquire lock only for the actual packet write ──────────────
     lock = await _get_emote_lock()
     async with lock:
-        ready = await _wait_for_writer(timeout=10)
-        if not ready or online_writer is None:
-            raise Exception("Bot not connected to game server")
+        # Re-check: connection may have dropped while we waited for the lock
+        if online_writer is None:
+            raise Exception("Connection lost. Please try again.")
 
         try:
-            if online_writer is None:
-                raise Exception("Connection lost before send")
-
             # 1) Join squad
             EM = await GenJoinSquadsPacket(team_code, key, iv)
             online_writer.write(EM)
             await online_writer.drain()
 
-            # 2) Small wait so server processes the join before emote arrives
-            await asyncio.sleep(0.08)
+            # 2) Short pause — lets the server process the join before the
+            #    emote packet arrives.  The TCP connection will drop right
+            #    after drain() (server behaviour); TcPOnLine will reconnect
+            #    automatically.  We don't need the connection alive past here.
+            await asyncio.sleep(0.1)
 
-            if online_writer is None:
-                raise Exception("Connection lost after join")
+            # 3) Re-grab the writer — it may have been replaced by reconnect
+            w = online_writer
+            if w is None:
+                # Wait briefly for reconnect
+                ready2 = await _wait_for_writer(timeout=5)
+                if not ready2:
+                    raise Exception("Reconnect timed out after join")
+                w = online_writer
 
-            # 3) Send emote packets for each UID
+            # 4) Send emote packets for each UID
             for uid_str in uids:
                 pkt = await Emote_k(int(uid_str), emote_id, key, iv, region)
-                online_writer.write(pkt)
-            await online_writer.drain()
-
-            # NOTE: We do NOT send ExiT — it closes the TCP connection which
-            # takes the bot offline. The squad slot expires on its own.
+                w.write(pkt)
+            await w.drain()
 
             CURRENT_TEAM_CODE = None
             return {"status": "success", "message": "Emote sent"}
