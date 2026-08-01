@@ -388,6 +388,33 @@ def _build_emote_data():
         with open(_name_db_path, 'r') as _f:
             _name_db = json.load(_f)
 
+    # Evo Gun emote IDs — explicit list (span multiple ID ranges so can't
+    # rely on numeric range alone)
+    _EVO_IDS = {
+        909000063,  # AK47     – Blue Flame Draco    → Draco's Soul
+        909000068,  # SCAR     – Megalodon Alpha      → Megalodon Attack
+        909000071,  # MP40     – Predatory Cobra      → Cobra Dance
+        909000081,  # M1014    – Green Flame Draco    → Dragon Splash
+        909000085,  # XM8      – Destiny Guardian     → Lightning Strike
+        909000090,  # FAMAS    – Demonic Grin         → Demon's Roar
+        909000098,  # UMP      – Booyah Day 2021      → Booyah Power
+        909033001,  # M4A1     – Infernal Draco       → Infernal Burst
+        909033002,  # MP5      – Platinum Divinity    → Angelic Grace
+        909034001,  # Rampage  – Hyperbook            → Book Power
+        909035007,  # M1887    – Sterling Conqueror   → Conqueror's Slash
+        909035010,  # G36      – Violet Threat        → Purple Phantom
+        909035012,  # AN94     – Evil Howler          → Howler's Rage
+        909037011,  # Evo Fist – Bonebreaker          → Flaming Punch
+        909038010,  # Thompson – Cindered Colossus    → Fire Surge
+        909038012,  # G18      – Lethal Fangs         → Serpent Bite
+        909039011,  # M1014 2.0– Scorpio Shatter      → Scorpio Sting
+        909040010,  # Vector   – Chromasonic          → Sonic Wave
+        909041005,  # Groza    – Bang Pop             → Cyber Blast
+        909042008,  # Woodpecker– Majestic Prowler    → Panther Pounce
+        909049010,  # P90      – Marvelous Zenith     → Cosmic Zenith
+        909051003,  # M60      – Cosmic Volcano       → Lava Eruption
+    }
+
     # Track duplicate names to ensure unique keys
     _name_count = {}
     for path in sorted(_glob.glob(os.path.join(emote_dir, "*.png"))):
@@ -404,7 +431,11 @@ def _build_emote_data():
 
         emotes[name] = emote_id
         categories["All"].append(name)
-        if emote_id <= 909009999:
+
+        # Evo IDs take priority over range-based bucket
+        if emote_id in _EVO_IDS:
+            categories["Evo"].append(name)
+        elif emote_id <= 909009999:
             categories["Old"].append(name)
         elif emote_id <= 909039999:
             categories["Rare"].append(name)
