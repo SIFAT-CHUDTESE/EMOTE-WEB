@@ -378,7 +378,7 @@ import glob as _glob
 
 def _build_emote_data():
     emotes = {}
-    categories = {"All": [], "Old": [], "New": [], "Evo": [], "Rare": []}
+    categories = {"All": [], "Old": [], "Rare": [], "Epic": [], "Evo": [], "New": []}
     emote_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "emotes")
 
     # Load real emote names from database
@@ -432,15 +432,19 @@ def _build_emote_data():
         emotes[name] = emote_id
         categories["All"].append(name)
 
-        # Evo IDs take priority over range-based bucket
+        # Evo IDs (gun skin emotes) take priority over everything
         if emote_id in _EVO_IDS:
             categories["Evo"].append(name)
-        elif emote_id <= 909009999:
+        # Old  — earliest emotes (OB1–OB15 era)
+        elif emote_id <= 909000059:
             categories["Old"].append(name)
-        elif emote_id <= 909039999:
+        # Rare — mid-era 000xxx emotes (OB15–OB25)
+        elif emote_id <= 909000142:
             categories["Rare"].append(name)
-        elif emote_id <= 909046999:
-            categories["Evo"].append(name)
+        # Epic — collab / special emotes (OB25–OB35, 033xxx–039xxx)
+        elif emote_id <= 909039999:
+            categories["Epic"].append(name)
+        # New  — latest OB updates (OB35+, 040xxx–054xxx)
         else:
             categories["New"].append(name)
     return emotes, categories
