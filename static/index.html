@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SIFAT FF — Emote Sender</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23030508'/><text x='16' y='23' font-size='20' text-anchor='middle'>⚡</text></svg>"/>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@400;600;700;900&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:     #030508;
+      --s1:     #070c14;
+      --s2:     #0a1020;
+      --cyan:   #00f5ff;
+      --purple: #bf00ff;
+      --pink:   #ff00aa;
+      --orange: #ff6600;
+      --gold:   #ffd700;
+      --green:  #00ff88;
+      --red:    #ff3355;
+      --blue:   #38bdf8;
+      --text:   #c8d8f0;
+      --muted:  #3a4a6a;
+      --border: rgba(0,245,255,0.12);
+    }
+
+    *{margin:0;padding:0;box-sizing:border-box;}
+    html{scroll-behavior:smooth;}
+
+    ::-webkit-scrollbar{width:4px;}
+    ::-webkit-scrollbar-track{background:#030508;}
+    ::-webkit-scrollbar-thumb{background:linear-gradient(var(--cyan),var(--purple));border-radius:4px;}
+
+    body{
+      background:var(--bg);color:var(--text);
+      font-family:'Inter',sans-serif;min-height:100vh;
+      overflow-x:hidden;position:relative;
+    }
+
+    /* ═══ ANIMATED BACKGROUND ═══ */
+    .bg-layer{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
+    .grid-bg{
+      position:absolute;inset:0;
+      background-image:
+        linear-gradient(rgba(0,245,255,.04) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(0,245,255,.04) 1px,transparent 1px);
+      background-size:40px 40px;
+      will-change:background-position;
+      animation:gridMove 25s linear infinite;
+    }
+    @keyframes gridMove{0%{background-position:0 0;}100%{background-position:40px 40px;}}
+
+    .glow-orb{position:absolute;border-radius:50%;filter:blur(80px);opacity:.18;animation:orbFloat 8s ease-in-out infinite;will-change:transform;}
+    .orb-1{width:500px;height:500px;top:-150px;left:-150px;background:var(--cyan);animation-delay:0s;}
+    .orb-2{width:450px;height:450px;bottom:-100px;right:-100px;background:var(--purple);animation-delay:-3s;}
+    .orb-3{width:300px;height:300px;top:40%;left:40%;background:var(--pink);animation-delay:-5s;opacity:.1;}
+    @keyframes orbFloat{0%,100%{transform:translate(0,0);}33%{transform:translate(20px,-20px);}66%{transform:translate(-15px,15px);}}
+
+    .scanlines{position:fixed;inset:0;z-index:1;pointer-events:none;
+      background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.025) 2px,rgba(0,0,0,.025) 4px);}
+
+    #particle-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;will-change:transform;}
+
+    /* ═══ CONTENT ═══ */
+    .content{position:relative;z-index:10;}
+
+    /* ═══ HEADER ═══ */
+    header{
+      position:sticky;top:0;z-index:200;
+      background:rgba(3,5,8,.88);backdrop-filter:blur(20px);
+      border-bottom:1px solid var(--border);
+      height:62px;padding:0 20px;
+      display:flex;align-items:center;justify-content:space-between;
+      box-shadow:0 0 30px rgba(0,245,255,.04),0 1px 0 rgba(0,245,255,.14);
+    }
+    .brand{display:flex;align-items:center;gap:12px;}
+    .brand-logo{
+      width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0;
+      border:2px solid transparent;
+      background:linear-gradient(var(--bg),var(--bg)) padding-box,
+                 linear-gradient(135deg,var(--cyan),var(--purple)) border-box;
+      box-shadow:0 0 16px rgba(0,245,255,.5),0 0 32px rgba(0,245,255,.2);
+      animation:logoPulse 3s ease-in-out infinite;
+    }
+    .brand-logo img{width:100%;height:100%;object-fit:cover;}
+    @keyframes logoPulse{
+      0%,100%{box-shadow:0 0 16px rgba(0,245,255,.5),0 0 32px rgba(0,245,255,.2);}
+      50%{box-shadow:0 0 24px rgba(0,245,255,.9),0 0 48px rgba(0,245,255,.35),0 0 64px rgba(191,0,255,.15);}
+    }
+    .brand-name{
+      font-family:'Orbitron',sans-serif;font-size:14px;font-weight:700;letter-spacing:2px;
+      background:linear-gradient(90deg,var(--cyan),var(--purple));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;text-transform:uppercase;
+    }
+    .brand-sub{font-size:8px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;font-family:'Rajdhani',sans-serif;}
+    .api-badge{
+      display:flex;align-items:center;gap:6px;font-size:10px;color:var(--green);
+      letter-spacing:1px;font-family:'JetBrains Mono',monospace;
+      background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.2);
+      padding:4px 10px;border-radius:20px;transition:all .3s;
+    }
+    .api-badge.offline{color:var(--red);background:rgba(255,51,85,.08);border-color:rgba(255,51,85,.2);}
+    .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.5s ease infinite;}
+    .api-badge.offline .dot{background:var(--red);}
+    @keyframes blink{0%,100%{opacity:1;box-shadow:0 0 6px var(--green);}50%{opacity:.3;box-shadow:none;}}
+
+    /* ═══ WRAP ═══ */
+    .wrap{max-width:700px;margin:0 auto;padding:18px 14px 80px;}
+
+    /* ═══ STATS ═══ */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+    @media(max-width:540px){.stats{grid-template-columns:1fr 1fr;}}
+    .stat-card{
+      background:linear-gradient(135deg,rgba(7,12,20,.9),rgba(10,16,32,.8));
+      border:1px solid var(--border);border-radius:14px;
+      padding:14px 14px 12px;position:relative;overflow:hidden;cursor:default;
+      transition:transform .3s,box-shadow .3s;
+    }
+    .stat-card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(0,245,255,.03),transparent);pointer-events:none;}
+    @keyframes shimmer{0%{left:-100%;}100%{left:100%;}}
+    .stat-card:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,245,255,.1);}
+    .stat-val{
+      font-family:'Orbitron',sans-serif;font-size:24px;font-weight:700;
+      background:linear-gradient(135deg,var(--cyan),var(--purple));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;
+    }
+    .stat-card:nth-child(2) .stat-val{background:linear-gradient(135deg,var(--purple),var(--pink));-webkit-background-clip:text;}
+    .stat-card:nth-child(3) .stat-val{background:linear-gradient(135deg,var(--green),var(--cyan));-webkit-background-clip:text;}
+    .stat-card:nth-child(4) .stat-val{background:linear-gradient(135deg,var(--orange),var(--gold));-webkit-background-clip:text;}
+    .stat-label{font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;font-family:'Rajdhani',sans-serif;margin-top:4px;}
+    .stat-icon{position:absolute;top:10px;right:12px;font-size:16px;opacity:.22;}
+
+    /* ═══ CARD ═══ */
+    .card{
+      background:linear-gradient(135deg,rgba(7,12,20,.97),rgba(10,16,32,.92));
+      border:1px solid var(--border);border-radius:18px;padding:18px;
+      margin-bottom:13px;position:relative;overflow:hidden;
+      transition:box-shadow .4s;contain:layout style paint;
+    }
+    .card:hover{box-shadow:0 0 40px rgba(0,245,255,.05);}
+    .card::before{
+      content:'';position:absolute;top:0;left:0;right:0;height:1px;
+      background:linear-gradient(90deg,transparent,rgba(0,245,255,.4),var(--purple),transparent);
+    }
+    .card::after{content:'';position:absolute;bottom:0;right:0;width:80px;height:80px;background:radial-gradient(circle at bottom right,rgba(191,0,255,.06),transparent 70%);}
+
+    /* corner accents */
+    .cc{position:absolute;width:12px;height:12px;border-color:var(--cyan);border-style:solid;opacity:.35;}
+    .cc.tl{top:8px;left:8px;border-width:1.5px 0 0 1.5px;}
+    .cc.tr{top:8px;right:8px;border-width:1.5px 1.5px 0 0;}
+    .cc.bl{bottom:8px;left:8px;border-width:0 0 1.5px 1.5px;}
+    .cc.br{bottom:8px;right:8px;border-width:0 1.5px 1.5px 0;}
+
+    .card-hdr{
+      display:flex;align-items:center;gap:8px;margin-bottom:16px;
+      font-family:'Orbitron',sans-serif;font-size:11px;font-weight:600;
+      letter-spacing:2px;text-transform:uppercase;color:var(--cyan);
+    }
+    .card-hdr-icon{font-size:14px;filter:drop-shadow(0 0 6px var(--cyan));}
+
+    /* ═══ TWO-COL ═══ */
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:13px;}
+    @media(max-width:600px){.two{grid-template-columns:1fr;}}
+
+    /* ═══ FIELDS ═══ */
+    .field{display:flex;flex-direction:column;gap:5px;margin-bottom:11px;}
+    .field:last-of-type{margin-bottom:0;}
+    label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;font-family:'Rajdhani',sans-serif;}
+    .req-star{color:var(--cyan);}
+    .opt-tag{
+      font-size:8px;background:rgba(191,0,255,.1);color:rgba(191,0,255,.7);
+      border:1px solid rgba(191,0,255,.2);border-radius:4px;padding:1px 5px;
+      margin-left:4px;letter-spacing:.5px;text-transform:uppercase;font-family:'Rajdhani',sans-serif;
+    }
+
+    input,select{
+      width:100%;padding:10px 14px;
+      background:rgba(0,245,255,.04);border:1px solid rgba(0,245,255,.12);
+      border-radius:10px;color:var(--text);font-size:13px;
+      font-family:'JetBrains Mono',monospace;outline:none;transition:all .3s;
+    }
+    input:focus,select:focus{
+      border-color:rgba(0,245,255,.5);
+      box-shadow:0 0 0 3px rgba(0,245,255,.08),0 0 20px rgba(0,245,255,.1);
+      background:rgba(0,245,255,.06);
+    }
+    input::placeholder{color:var(--muted);}
+    select{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2300f5ff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+    select option{background:#070c14;color:var(--text);}
+
+    /* UID GRID */
+    .uid-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+    @media(max-width:400px){.uid-grid{grid-template-columns:1fr;}}
+    .uid-grid .field{margin-bottom:0;}
+    .uid-hint{
+      font-size:10px;color:var(--muted);border:1px dashed rgba(0,245,255,.12);
+      border-radius:8px;padding:7px 12px;text-align:center;letter-spacing:.3px;margin-top:8px;
+    }
+
+    /* ═══ SEND BUTTON ═══ */
+    .send-btn{
+      width:100%;padding:15px;margin-top:14px;
+      background:linear-gradient(135deg,rgba(0,245,255,.12),rgba(191,0,255,.12));
+      border:1px solid rgba(0,245,255,.35);border-radius:14px;
+      color:#fff;font-family:'Orbitron',sans-serif;
+      font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
+      cursor:pointer;position:relative;overflow:hidden;transition:all .3s;
+    }
+    .send-btn::before{
+      content:'';position:absolute;inset:0;
+      background:linear-gradient(135deg,rgba(0,245,255,.08),rgba(191,0,255,.08));
+      opacity:0;transition:opacity .3s;
+    }
+    .send-btn:hover:not(:disabled)::before{opacity:1;}
+    .send-btn:hover:not(:disabled){
+      border-color:rgba(0,245,255,.75);
+      box-shadow:0 0 30px rgba(0,245,255,.22),0 0 60px rgba(0,245,255,.1),inset 0 0 30px rgba(0,245,255,.04);
+      transform:translateY(-1px);
+    }
+    .send-btn:active:not(:disabled){transform:translateY(0);}
+    .send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important;}
+    /* Flowing border */
+    .send-btn-border{
+      position:absolute;inset:-1px;border-radius:15px;padding:1px;
+      background:linear-gradient(90deg,var(--cyan),var(--purple),var(--pink),var(--cyan));
+      background-size:300% 100%;animation:borderFlow 3s linear infinite;
+      -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+      -webkit-mask-composite:destination-out;mask-composite:exclude;
+      pointer-events:none;opacity:.65;
+    }
+    @keyframes borderFlow{0%{background-position:0% 50%;}100%{background-position:300% 50%;}}
+
+    /* ═══ STATUS ═══ */
+    .status{
+      display:none;align-items:center;gap:9px;
+      padding:10px 14px;border-radius:10px;margin-top:11px;
+      font-size:12px;font-family:'JetBrains Mono',monospace;letter-spacing:.3px;
+    }
+    .status.show{display:flex;}
+    .status.ok {background:rgba(0,255,136,.07);border:1px solid rgba(0,255,136,.2);color:var(--green);}
+    .status.err{background:rgba(255,51,85,.07);border:1px solid rgba(255,51,85,.2);color:var(--red);}
+    .status.wait{background:rgba(0,245,255,.06);border:1px solid rgba(0,245,255,.2);color:var(--cyan);}
+    .spin{width:14px;height:14px;border-radius:50%;flex-shrink:0;
+      border:2px solid rgba(0,245,255,.2);border-top-color:var(--cyan);
+      animation:rot .7s linear infinite;}
+    @keyframes rot{to{transform:rotate(360deg);}}
+
+    /* ═══ RESULT TABLE ═══ */
+    .result-table{display:none;margin-top:10px;border-radius:10px;overflow:hidden;border:1px solid rgba(0,245,255,.1);}
+    .result-table.show{display:block;}
+    .rt-row{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:11px;border-bottom:1px solid rgba(0,245,255,.06);}
+    .rt-row:last-child{border-bottom:none;}
+    .rt-row.ok{background:rgba(0,255,136,.04);}
+    .rt-row.err{background:rgba(255,51,85,.04);}
+    .rt-uid{font-family:'JetBrains Mono',monospace;color:var(--cyan);flex:1;font-size:10px;}
+    .rt-status{font-weight:700;font-size:10px;}
+    .rt-row.ok .rt-status{color:var(--green);}
+    .rt-row.err .rt-status{color:var(--red);}
+    .rt-msg{color:var(--muted);font-size:9px;}
+
+    /* ═══ EMOTE PANEL ═══ */
+    .emote-panel{}
+    .emote-panel-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+    .emote-panel-hdr .card-hdr{margin-bottom:0;}
+    .emote-count-badge{
+      font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;
+      background:linear-gradient(135deg,rgba(0,245,255,.12),rgba(191,0,255,.08));
+      border:1px solid rgba(0,245,255,.22);color:var(--cyan);
+      padding:4px 12px;border-radius:20px;letter-spacing:1px;
+    }
+    .search-row{display:flex;gap:9px;margin-bottom:12px;}
+    .search-row input{flex:1;}
+    .search-row select{width:150px;flex-shrink:0;}
+
+    .emote-scroll{
+      background:rgba(0,245,255,.015);border:1px solid rgba(0,245,255,.07);
+      border-radius:12px;padding:10px;max-height:380px;overflow-y:auto;
+    }
+    .emote-scroll::-webkit-scrollbar{width:3px;}
+    .emote-scroll::-webkit-scrollbar-thumb{background:linear-gradient(var(--cyan),var(--purple));}
+
+    .emote-grid{
+      display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:9px;
+    }
+    .emote-card{
+      background:linear-gradient(135deg,rgba(7,12,20,.95),rgba(10,16,32,.8));
+      border:1px solid rgba(0,245,255,.07);border-radius:12px;
+      cursor:pointer;overflow:hidden;position:relative;
+      transition:all .22s;user-select:none;
+    }
+    .emote-card::before{
+      content:'';position:absolute;inset:0;
+      background:linear-gradient(135deg,rgba(0,245,255,.05),rgba(191,0,255,.03));
+      opacity:0;transition:opacity .22s;
+    }
+    .emote-card:hover::before{opacity:1;}
+    .emote-card:hover{
+      border-color:rgba(0,245,255,.38);
+      box-shadow:0 0 18px rgba(0,245,255,.1),0 4px 14px rgba(0,0,0,.4);
+      transform:translateY(-2px) scale(1.02);
+    }
+    .emote-card.active{
+      border-color:var(--cyan);
+      box-shadow:0 0 22px rgba(0,245,255,.28),inset 0 0 16px rgba(0,245,255,.05);
+      background:linear-gradient(135deg,rgba(0,245,255,.08),rgba(191,0,255,.05));
+    }
+    .emote-card.active::after{
+      content:'✓';position:absolute;top:4px;right:6px;
+      font-size:9px;color:var(--cyan);font-weight:700;
+      font-family:'Orbitron',sans-serif;
+      text-shadow:0 0 8px var(--cyan);
+    }
+    .emote-img-wrap{width:100%;aspect-ratio:1;overflow:hidden;background:rgba(0,0,0,.3);}
+    .emote-img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .22s;}
+    .emote-card:hover .emote-img{transform:scale(1.06);}
+    .emote-name{
+      padding:5px 6px 7px;font-size:9px;font-family:'Rajdhani',sans-serif;
+      color:var(--muted);text-align:center;text-transform:uppercase;
+      letter-spacing:.5px;font-weight:600;line-height:1.3;
+      overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+      word-break:break-word;
+      transition:color .22s;
+    }
+    .emote-card.active .emote-name{color:var(--cyan);}
+    .emote-card:hover .emote-name{color:var(--text);}
+
+    /* Selected pill */
+    .sel-pill{
+      display:none;align-items:center;gap:8px;margin-top:10px;
+      background:rgba(0,245,255,.07);border:1px solid rgba(0,245,255,.2);
+      border-radius:10px;padding:8px 14px;font-size:12px;
+    }
+    .sel-pill.show{display:flex;}
+    .sel-pill strong{color:var(--cyan);font-family:'Orbitron',sans-serif;font-size:11px;}
+    .sel-id{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-left:auto;}
+
+    .empty{text-align:center;color:var(--muted);font-size:13px;padding:28px;font-family:'Rajdhani',sans-serif;letter-spacing:1px;}
+
+    /* ═══ LOG ═══ */
+    .log-hdr-row{display:flex;align-items:center;width:100%;margin-bottom:14px;}
+    .log-hdr-row .card-hdr{margin-bottom:0;flex:1;}
+    .clear-btn{
+      background:rgba(0,245,255,.06);border:1px solid rgba(0,245,255,.15);
+      color:var(--muted);border-radius:7px;padding:3px 10px;
+      font-size:9px;cursor:pointer;font-family:'Rajdhani',sans-serif;
+      letter-spacing:1px;text-transform:uppercase;transition:all .2s;
+    }
+    .clear-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+
+    .log-box{
+      background:rgba(0,245,255,.015);border:1px solid rgba(0,245,255,.07);
+      border-radius:10px;padding:10px;height:150px;overflow-y:auto;
+      font-family:'JetBrains Mono',monospace;font-size:10px;
+    }
+    .log-box::-webkit-scrollbar{width:3px;}
+    .log-box::-webkit-scrollbar-thumb{background:linear-gradient(var(--cyan),var(--purple));}
+    .lg{padding:2px 0;line-height:1.65;}
+    .lg.ok{color:var(--green);}
+    .lg.er{color:var(--red);}
+    .lg.in{color:var(--muted);}
+    .lg.wa{color:rgba(255,200,80,.85);}
+
+    /* Divider */
+    .divider{height:1px;margin:14px 0;background:linear-gradient(90deg,transparent,rgba(0,245,255,.18),rgba(191,0,255,.18),transparent);}
+
+    /* ═══ REGION SELECT (BAR + DROPDOWN) ═══ */
+    .region-select{position:relative;margin-top:4px;}
+    .region-bar{
+      display:flex;align-items:center;gap:10px;cursor:pointer;
+      padding:11px 14px;border-radius:12px;
+      border:1px solid rgba(0,245,255,.14);
+      background:rgba(0,245,255,.03);
+      transition:border-color .2s, background .2s;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .region-bar:hover{border-color:rgba(0,245,255,.35);background:rgba(0,245,255,.06);}
+    .region-select.open .region-bar{border-color:var(--cyan);background:rgba(0,245,255,.07);}
+    .region-bar-flag{font-size:20px;line-height:1;}
+    .region-bar-info{flex:1;min-width:0;}
+    .region-bar-name{font-size:12.5px;font-weight:600;color:var(--text);font-family:'Rajdhani',sans-serif;letter-spacing:.4px;}
+    .region-bar-code{font-size:8.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:.5px;}
+    .region-bar-dot{width:7px;height:7px;border-radius:50%;background:var(--red);opacity:.8;flex-shrink:0;}
+    .region-bar-dot.has-bot{background:var(--green);box-shadow:0 0 6px var(--green);}
+    .region-bar-caret{font-size:10px;color:var(--muted);transition:transform .2s;flex-shrink:0;}
+    .region-select.open .region-bar-caret{transform:rotate(180deg);color:var(--cyan);}
+
+    .region-dropdown{
+      position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:50;
+      max-height:260px;overflow-y:auto;
+      border-radius:12px;border:1px solid rgba(0,245,255,.2);
+      background:linear-gradient(160deg,rgba(7,12,20,.99),rgba(10,16,32,.98));
+      box-shadow:0 12px 34px rgba(0,0,0,.5),0 0 0 1px rgba(0,245,255,.08);
+      opacity:0;transform:translateY(-6px);pointer-events:none;
+      transition:opacity .15s ease, transform .15s ease;
+    }
+    .region-select.open .region-dropdown{opacity:1;transform:translateY(0);pointer-events:auto;}
+    .region-option{
+      display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;
+      border-bottom:1px solid rgba(0,245,255,.05);
+      transition:background .15s;
+    }
+    .region-option:last-child{border-bottom:none;}
+    .region-option:hover{background:rgba(0,245,255,.06);}
+    .region-option.selected{background:rgba(0,245,255,.09);}
+    .region-option-flag{font-size:16px;line-height:1;}
+    .region-option-info{flex:1;}
+    .region-option-name{font-size:11.5px;font-weight:600;color:var(--text);font-family:'Rajdhani',sans-serif;}
+    .region-option-code{font-size:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:.5px;}
+    .region-option-dot{width:6px;height:6px;border-radius:50%;background:var(--red);opacity:.8;flex-shrink:0;}
+    .region-option-dot.has-bot{background:var(--green);box-shadow:0 0 6px var(--green);}
+  </style>
+</head>
+<body>
+
+<!-- ═══ BACKGROUND ═══ -->
+<div class="bg-layer">
+  <div class="grid-bg"></div>
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
+  <div class="glow-orb orb-3"></div>
+</div>
+<div class="scanlines"></div>
+<canvas id="particle-canvas"></canvas>
+
+<div class="content">
+
+<!-- ═══ HEADER ═══ -->
+<header>
+  <div class="brand">
+    <div class="brand-logo">
+      <img src="/static/logo.jpg" alt="SIFAT" onerror="this.style.display='none'"/>
+    </div>
+    <div>
+      <div class="brand-name">FF EMOTES <span style="font-size:10px;opacity:.55;letter-spacing:2px;font-weight:500;">BY SIFAT</span></div>
+      <div class="brand-sub">Free Fire Emote Sender</div>
+    </div>
+  </div>
+  <div class="api-badge" id="api-badge">
+    <div class="dot"></div>
+    <span id="srv-lbl">Connecting…</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ═══ TARGET + OPTIONS ═══ -->
+  <div class="two">
+    <!-- Target Info -->
+    <div class="card">
+      <div class="cc tl"></div><div class="cc tr"></div>
+      <div class="cc bl"></div><div class="cc br"></div>
+      <div class="card-hdr">
+        <span class="card-hdr-icon">◎</span>
+        Target Info
+      </div>
+      <div class="uid-grid">
+        <div class="field">
+          <label>UID 1 <span class="req-star">✦</span></label>
+          <input id="uid1" type="text" inputmode="numeric" placeholder="Required" maxlength="12"/>
+        </div>
+        <div class="field">
+          <label>UID 2 <span class="opt-tag">opt</span></label>
+          <input id="uid2" type="text" inputmode="numeric" placeholder="Optional" maxlength="12"/>
+        </div>
+        <div class="field">
+          <label>UID 3 <span class="opt-tag">opt</span></label>
+          <input id="uid3" type="text" inputmode="numeric" placeholder="Optional" maxlength="12"/>
+        </div>
+        <div class="field">
+          <label>UID 4 <span class="opt-tag">opt</span></label>
+          <input id="uid4" type="text" inputmode="numeric" placeholder="Optional" maxlength="12"/>
+        </div>
+      </div>
+      <div class="field" style="margin-top:4px;">
+        <label>Team Code</label>
+        <input id="tcode" type="text" placeholder="e.g. 9876543"/>
+      </div>
+      <div class="uid-hint">⚡ Enter 1–4 UIDs — all squad members will receive the emote</div>
+    </div>
+
+    <!-- Options -->
+    <div class="card">
+      <div class="cc tl"></div><div class="cc tr"></div>
+      <div class="card-hdr">
+        <span class="card-hdr-icon">◈</span>
+        Options
+      </div>
+      <div class="field">
+        <label>Region</label>
+        <div class="region-select" id="region-select">
+          <div class="region-bar" id="region-bar" onclick="toggleRegionDropdown()">
+            <div class="region-bar-flag" id="region-bar-flag">🇧🇩</div>
+            <div class="region-bar-info">
+              <div class="region-bar-name" id="region-bar-name">Bangladesh</div>
+              <div class="region-bar-code" id="region-bar-code">BD</div>
+            </div>
+            <div class="region-bar-dot" id="region-bar-dot"></div>
+            <div class="region-bar-caret">▾</div>
+          </div>
+          <div class="region-dropdown" id="region-dropdown"></div>
+        </div>
+      </div>
+      <div class="divider"></div>
+
+      <button class="send-btn" id="send-btn" onclick="doSend()">
+        <div class="send-btn-border"></div>
+        ⚡ &nbsp;SEND EMOTE
+      </button>
+
+      <div id="status" class="status"></div>
+      <div id="result-table" class="result-table"></div>
+    </div>
+  </div>
+
+  <!-- ═══ EMOTE PICKER ═══ -->
+  <div class="card emote-panel">
+    <div class="cc tl"></div><div class="cc tr"></div>
+    <div class="emote-panel-hdr">
+      <div class="card-hdr">
+        <span class="card-hdr-icon">◇</span>
+        Choose Emote
+      </div>
+      <div class="emote-count-badge" id="em-badge">Loading…</div>
+    </div>
+
+    <div class="search-row">
+      <input id="q" type="text" placeholder="🔍  Search emote name…" oninput="filterEmotes()"/>
+      <select id="cat" onchange="filterEmotes()">
+        <option value="">All Categories</option>
+        <!-- categories populated by JS, skipping "All" to avoid duplicate -->
+      </select>
+    </div>
+
+    <div class="emote-scroll">
+      <div id="emote-grid" class="emote-grid">
+        <div class="empty">Loading emotes…</div>
+      </div>
+    </div>
+
+    <div id="sel-pill" class="sel-pill">
+      <span style="color:var(--green);font-size:14px;">✓</span>
+      Selected: <strong id="sel-name">—</strong>
+      <span class="sel-id" id="sel-id"></span>
+    </div>
+  </div>
+
+  <!-- ═══ ACTIVITY LOG ═══ -->
+  <div class="card">
+    <div class="log-hdr-row">
+      <div class="card-hdr">
+        <span class="card-hdr-icon">▸</span>
+        Activity Log
+      </div>
+      <button class="clear-btn" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="log-box" id="log"></div>
+  </div>
+
+</div><!-- /wrap -->
+</div><!-- /content -->
+
+<script>
+  /* ═══ PARTICLE SYSTEM ═══ */
+  (function() {
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    resize();
+    window.addEventListener('resize', resize);
+    class Particle {
+      constructor() { this.reset(); }
+      reset() {
+        this.x  = Math.random() * canvas.width;
+        this.y  = Math.random() * canvas.height;
+        this.vx = (Math.random() - .5) * .35;
+        this.vy = (Math.random() - .5) * .35;
+        this.r  = Math.random() * 1.4 + .3;
+        this.life = Math.random();
+        this.speed = Math.random() * .0025 + .001;
+        const c = ['rgba(0,245,255,','rgba(191,0,255,','rgba(255,0,170,'];
+        this.color = c[Math.floor(Math.random()*3)];
+      }
+      tick() {
+        this.life += this.speed;
+        if (this.life > 1) this.reset();
+        const a = Math.sin(this.life * Math.PI) * .5;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+        ctx.fillStyle = this.color + a + ')';
+        ctx.fill();
+        this.x += this.vx; this.y += this.vy;
+      }
+    }
+    for (let i=0; i<35; i++) particles.push(new Particle());
+    let rafId, paused = false;
+    function frame() {
+      if (!paused) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => p.tick());
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+    frame();
+    document.addEventListener('visibilitychange', () => { paused = document.hidden; });
+  })();
+
+  /* ═══ STATE ═══ */
+  let allEmotes = {}, allCategories = {}, selectedEmote = null, sessionSent = 0;
+
+  /* ═══ INIT ═══ */
+  async function init() {
+    await Promise.all([pingAPI(), loadRegions(), loadEmotes()]);
+    setInterval(pingAPI, 15000);
+  }
+
+  async function pingAPI() {
+    const badge = document.getElementById('api-badge');
+    try {
+      const d = await (await fetch('/api/health')).json();
+      if (d.bot_online) {
+        document.getElementById('srv-lbl').textContent = 'Bot Online';
+        badge.classList.remove('offline');
+      } else {
+        document.getElementById('srv-lbl').textContent = 'Bot Reconnecting…';
+        badge.classList.add('offline');
+      }
+    } catch {
+      document.getElementById('srv-lbl').textContent = 'API Offline';
+      badge.classList.add('offline');
+    }
+  }
+
+  const REGION_FLAGS = {
+    bd:'🇧🇩', ind:'🇮🇳', np:'🇳🇵', sg:'🇸🇬', us:'🇺🇸',
+    br:'🇧🇷', id:'🇮🇩', tw:'🇹🇼', th:'🇹🇭', vn:'🇻🇳', me:'🌍',
+  };
+  let selectedRegion = 'bd';
+  let regionsData = [];
+
+  async function loadRegions() {
+    try {
+      const d = await (await fetch('/api/regions')).json();
+      regionsData = d.regions;
+      renderRegionDropdown();
+      updateRegionBar();
+    } catch {}
+  }
+
+  function renderRegionDropdown() {
+    const dd = document.getElementById('region-dropdown');
+    dd.innerHTML = regionsData.map(r => `
+      <div class="region-option ${r.code === selectedRegion ? 'selected' : ''}" onclick="selectRegion('${r.code}')">
+        <div class="region-option-flag">${REGION_FLAGS[r.code] || '🏳️'}</div>
+        <div class="region-option-info">
+          <div class="region-option-name">${r.label}</div>
+          <div class="region-option-code">${r.code.toUpperCase()}</div>
+        </div>
+        <div class="region-option-dot ${r.has_bot ? 'has-bot' : ''}"></div>
+      </div>`).join('');
+  }
+
+  function updateRegionBar() {
+    const r = regionsData.find(x => x.code === selectedRegion);
+    if (!r) return;
+    document.getElementById('region-bar-flag').textContent = REGION_FLAGS[r.code] || '🏳️';
+    document.getElementById('region-bar-name').textContent = r.label;
+    document.getElementById('region-bar-code').textContent = r.code.toUpperCase();
+    document.getElementById('region-bar-dot').classList.toggle('has-bot', r.has_bot);
+  }
+
+  function toggleRegionDropdown() {
+    document.getElementById('region-select').classList.toggle('open');
+  }
+
+  function selectRegion(code) {
+    selectedRegion = code;
+    updateRegionBar();
+    renderRegionDropdown();
+    document.getElementById('region-select').classList.remove('open');
+  }
+
+  document.addEventListener('click', (e) => {
+    const sel = document.getElementById('region-select');
+    if (sel && !sel.contains(e.target)) sel.classList.remove('open');
+  });
+
+  async function loadEmotes() {
+    try {
+      const d = await (await fetch('/api/emotes')).json();
+      allEmotes     = d.emotes || {};
+      allCategories = d.categories || {};
+
+      document.getElementById('em-badge').textContent = d.total + ' EMOTES';
+
+      const catSel = document.getElementById('cat');
+      Object.keys(allCategories).filter(c => c !== 'All').forEach(c => {
+        const o = document.createElement('option');
+        o.value = c; o.textContent = c + ' (' + allCategories[c].length + ')';
+        catSel.appendChild(o);
+      });
+
+      const sortedNames = Object.keys(allEmotes).sort();
+      const uniqueTotal = new Set(sortedNames.map(n => allEmotes[n])).size;
+      document.getElementById('em-badge').textContent = uniqueTotal + ' EMOTES';
+      renderEmotes(sortedNames);
+      addLog(`Loaded ${uniqueTotal} unique emotes in ${Object.keys(allCategories).length} categories`, 'in');
+    } catch(e) {
+      document.getElementById('emote-grid').innerHTML = '<div class="empty">⚠️ Failed to load emotes</div>';
+      addLog('Failed to load emotes: ' + e.message, 'er');
+    }
+  }
+
+  /* ═══ FILTER + RENDER ═══ */
+  function filterEmotes() {
+    const q   = document.getElementById('q').value.toLowerCase().trim();
+    const cat = document.getElementById('cat').value;
+    let names = cat && allCategories[cat]
+      ? allCategories[cat]
+      : Object.keys(allEmotes).sort();
+    if (q) names = names.filter(n => n.toLowerCase().includes(q));
+    // Count unique IDs for badge
+    const uniqueCount = new Set(names.map(n => allEmotes[n])).size;
+    renderEmotes(names);
+    document.getElementById('em-badge').textContent = uniqueCount + ' EMOTES';
+  }
+
+  function renderEmotes(names) {
+    const grid = document.getElementById('emote-grid');
+    if (!names.length) {
+      grid.innerHTML = '<div class="empty">No emotes found</div>';
+      return;
+    }
+    // Deduplicate by emote ID — keep only the first alias for each ID
+    const seenIds = new Set();
+    const unique = names.filter(name => {
+      const id = allEmotes[name];
+      if (seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    });
+    grid.innerHTML = unique.map(name => {
+      const id  = allEmotes[name];
+      const cls = name === selectedEmote ? 'active' : '';
+      return `<div class="emote-card ${cls}" onclick="selectEmote('${name}')" title="${name} (${id})">
+        <div class="emote-img-wrap">
+          <img class="emote-img" src="/static/emotes/${id}.png"
+            alt="${name}"
+            onerror="this.onerror=null;this.style.opacity='.3';this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 80 80%22><text x=%2250%%22 y=%2255%%22 font-size=%2232%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22>🕹️</text></svg>'"/>
+        </div>
+        <div class="emote-name">${name}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function selectEmote(name) {
+    selectedEmote = name;
+    filterEmotes();
+    const id = allEmotes[name];
+    document.getElementById('sel-name').textContent = name;
+    document.getElementById('sel-id').textContent   = 'ID: ' + id;
+    document.getElementById('sel-pill').classList.add('show');
+    addLog(`Selected: ${name}  (ID: ${id})`, 'in');
+    // Auto-send only when UID1 + team code are already filled
+    const _u = document.getElementById('uid1').value.trim();
+    const _t = document.getElementById('tcode').value.trim();
+    if (_u && _t) doSend();
+  }
+
+  /* ═══ SEND ═══ */
+  async function doSend() {
+    const rawUids = [
+      document.getElementById('uid1').value.trim(),
+      document.getElementById('uid2').value.trim(),
+      document.getElementById('uid3').value.trim(),
+      document.getElementById('uid4').value.trim(),
+    ];
+    const uids   = rawUids.filter(u => u !== '');
+    const tcode  = document.getElementById('tcode').value.trim();
+    const region = selectedRegion;
+
+    if (!uids.length)   return setStatus('⚠️  Enter at least UID 1!', 'err');
+    if (!tcode)         return setStatus('⚠️  Enter Team Code!', 'err');
+    if (!selectedEmote) return setStatus('⚠️  Select an emote first!', 'err');
+    for (const u of uids) {
+      if (!/^\d{6,12}$/.test(u)) return setStatus(`⚠️  Invalid UID: ${u}`, 'err');
+    }
+
+    setLoading(true);
+    document.getElementById('result-table').classList.remove('show');
+    addLog(`► Sending "${selectedEmote}"  →  ${uids.length} player(s)  Team:${tcode}  [${region.toUpperCase()}]`, 'wa');
+
+    try {
+      const t0  = Date.now();
+      const res = await fetch('/api/send', {
+        method:  'POST',
+        headers: {'Content-Type':'application/json'},
+        body:    JSON.stringify({ uids, team_code:tcode, emote_name:selectedEmote, region }),
+      });
+      const d  = await res.json();
+      const ms = Date.now() - t0;
+
+      if (d.results) {
+        renderResults(d.results);
+        const ok   = d.results.filter(r => r.success).length;
+        const fail = d.results.length - ok;
+        sessionSent += ok;
+
+        if (fail === 0) {
+          setStatus(`✅  Emote sent to all ${ok} player(s)  (${ms}ms)`, 'ok');
+          addLog(`✅ All ${ok} player(s) received emote  [${ms}ms]`, 'ok');
+        } else if (ok === 0) {
+          setStatus(`❌  Failed for all ${fail} player(s)`, 'err');
+          addLog(`❌ All ${fail} failed`, 'er');
+        } else {
+          setStatus(`⚠️  ${ok} success, ${fail} failed  (${ms}ms)`, 'ok');
+          addLog(`⚠️ Partial: ${ok} OK, ${fail} failed  [${ms}ms]`, 'wa');
+        }
+        d.results.forEach(r => addLog(`   ${r.success?'✅':'❌'}  UID ${r.uid} — ${r.message}`, r.success?'ok':'er'));
+      } else {
+        setStatus(`❌  ${d.message}`, 'err');
+        addLog(`❌ ${d.message}`, 'er');
+        if (d.errors)      d.errors.forEach(e => addLog(`   • ${e}`, 'er'));
+        if (d.retry_after) addLog(`⏱  Rate limited — retry in ${d.retry_after}s`, 'wa');
+      }
+    } catch(e) {
+      setStatus('❌  Network error', 'err');
+      addLog('Network error: ' + e.message, 'er');
+    }
+    setLoading(false);
+  }
+
+  function renderResults(results) {
+    const tbl = document.getElementById('result-table');
+    tbl.innerHTML = results.map(r => `
+      <div class="rt-row ${r.success?'ok':'err'}">
+        <span class="rt-uid">${r.uid}</span>
+        <span class="rt-status">${r.success?'✅ Success':'❌ Failed'}</span>
+        <span class="rt-msg">${r.message}</span>
+      </div>`).join('');
+    tbl.classList.add('show');
+  }
+
+  /* ═══ UI HELPERS ═══ */
+  function setLoading(on) {
+    const btn = document.getElementById('send-btn');
+    btn.disabled = on;
+    btn.innerHTML = on
+      ? '<div class="send-btn-border"></div>⏳ &nbsp;Sending…'
+      : '<div class="send-btn-border"></div>⚡ &nbsp;SEND EMOTE';
+    if (on) setStatus('Connecting to FF server…', 'wait');
+  }
+
+  function setStatus(msg, type) {
+    const el = document.getElementById('status');
+    el.className = `status show ${type}`;
+    el.innerHTML = type==='wait'
+      ? `<div class="spin"></div><span>${msg}</span>`
+      : `<span>${msg}</span>`;
+  }
+
+  function addLog(msg, cls='in') {
+    const box = document.getElementById('log');
+    const t   = new Date().toLocaleTimeString('en-GB');
+    const el  = document.createElement('div');
+    el.className = `lg ${cls}`;
+    el.textContent = `[${t}]  ${msg}`;
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function clearLog() {
+    document.getElementById('log').innerHTML = '';
+    addLog('Log cleared.', 'in');
+  }
+
+  init();
+</script>
+</body>
+</html>
